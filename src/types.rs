@@ -107,6 +107,9 @@ pub struct SequencesSketch{
     pub sample_name: Option<String>,
     pub paired: bool,
     pub mean_read_length: f64,
+
+    // total number of sketched k-mers
+    pub total_kmer_counts: u32,
 }
 
 //Encoding kmer_counts as vec speeds up serialize/deserialize by
@@ -120,6 +123,9 @@ pub struct SequencesSketchEncode{
     pub sample_name: Option<String>,
     pub paired: bool,
     pub mean_read_length: f64,
+
+    // total number of sketched k-mers
+    pub total_kmer_counts: u32,
 }
 
 impl SequencesSketchEncode{
@@ -128,13 +134,13 @@ impl SequencesSketchEncode{
         for (key,val) in sketch.kmer_counts.into_iter(){
             vec_map.push((key,val));
         }
-        return SequencesSketchEncode{kmer_counts: vec_map, file_name: sketch.file_name, c: sketch.c, k: sketch.k, paired: sketch.paired, mean_read_length: sketch.mean_read_length, sample_name: sketch.sample_name };
+        return SequencesSketchEncode{kmer_counts: vec_map, file_name: sketch.file_name, c: sketch.c, k: sketch.k, paired: sketch.paired, mean_read_length: sketch.mean_read_length, sample_name: sketch.sample_name, total_kmer_counts: sketch.total_kmer_counts };
     }
 }
 
 impl SequencesSketch{
-    pub fn new(file_name: String, c: usize, k: usize, paired: bool, sample_name: Option<String>, mean_read_length: f64) -> SequencesSketch{
-        return SequencesSketch{kmer_counts : HashMap::default(), file_name, c, k, paired, sample_name, mean_read_length}
+    pub fn new(file_name: String, c: usize, k: usize, paired: bool, sample_name: Option<String>, mean_read_length: f64, total_kmer_counts: u32) -> SequencesSketch{
+        return SequencesSketch{kmer_counts : HashMap::default(), file_name, c, k, paired, sample_name, mean_read_length, total_kmer_counts}
     }
     pub fn from_enc(sketch: SequencesSketchEncode) -> SequencesSketch{
         let mut new_map = FxHashMap::default();
@@ -142,7 +148,7 @@ impl SequencesSketch{
         for item in sketch.kmer_counts.into_iter(){
             new_map.insert(item.0, item.1);
         }
-        return SequencesSketch{kmer_counts: new_map, file_name: sketch.file_name, c: sketch.c, k: sketch.k, paired: sketch.paired, mean_read_length: sketch.mean_read_length, sample_name: sketch.sample_name};
+        return SequencesSketch{kmer_counts: new_map, file_name: sketch.file_name, c: sketch.c, k: sketch.k, paired: sketch.paired, mean_read_length: sketch.mean_read_length, sample_name: sketch.sample_name, total_kmer_counts: sketch.total_kmer_counts};
     }
 }
 
@@ -187,4 +193,6 @@ pub struct AniResult<'a>{
     pub seq_abund: Option<f64>,
     pub kmers_lost: Option<usize>,
 
+    // number of assigned k-mers
+    pub assigned_kmers: u32,
 }

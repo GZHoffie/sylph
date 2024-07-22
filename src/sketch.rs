@@ -781,7 +781,7 @@ pub fn sketch_pair_sequences(
 ) -> Option<SequencesSketch> {
     let r1o = parse_fastx_file(&read_file1);
     let r2o = parse_fastx_file(&read_file2);
-    let mut read_sketch = SequencesSketch::new(read_file1.to_string(), c, k, true, sample_name, 0.);
+    let mut read_sketch = SequencesSketch::new(read_file1.to_string(), c, k, true, sample_name, 0., 0);
     if r1o.is_err() || r2o.is_err() {
         log::error!("Paired end reading failed for '{}' and '{}'. Make sure the files are present or the sequences are valid.", read_file1, read_file2);
         std::process::exit(1);
@@ -893,6 +893,7 @@ pub fn sketch_pair_sequences(
         percent,
     );
     read_sketch.mean_read_length = mean_read_length;
+    read_sketch.total_kmer_counts = read_sketch.kmer_counts.values().sum::<u32>();
     return Some(read_sketch);
 }
 
@@ -910,6 +911,7 @@ pub fn sketch_sequences_needle(
     let mut counter = 0.;
     let mut kmer_to_pair_table = FxHashSet::default();
     let mut num_dup_removed = 0;
+    let mut total_kmer_counts = 0;
 
     if !reader.is_ok() {
         warn!("{} is not a valid fasta/fastq file; skipping.", ref_file);
@@ -943,6 +945,7 @@ pub fn sketch_sequences_needle(
                 counter += 1.;
                 mean_read_length =
                     mean_read_length + ((seq.len() as f64) - mean_read_length) / counter;
+                total_kmer_counts = kmer_map.values().sum::<u32>();
             } else {
                 warn!("File {} is not a valid fasta/fastq file", ref_file);
             }
@@ -957,5 +960,6 @@ pub fn sketch_sequences_needle(
         paired: false,
         sample_name: sample_name,
         mean_read_length,
+        total_kmer_counts,
     });
 }

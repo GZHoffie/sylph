@@ -306,19 +306,26 @@ pub fn contain(mut args: ContainArgs, pseudotax_in: bool) {
                     estimate_true_cov(&mut stats_vec_seq, kmer_id_opt, args.estimate_unknown, sequence_sketch.mean_read_length, sequence_sketch.k);
                     log::info!("{} has {} genomes passing profiling threshold. ", &first_read_file, stats_vec_seq.len());
 
-                    let mut bases_explained = 1.;
-                    if args.estimate_unknown{
-                        bases_explained = estimate_covered_bases(&stats_vec_seq, &sequence_sketch, sequence_sketch.mean_read_length, sequence_sketch.k);
-                        log::info!("{} has {:.2}% of reads detected in database by profile", &first_read_file, bases_explained * 100.);
-                    }
+                    //let mut bases_explained = 1.;
+                    //if args.estimate_unknown{
+                    //    bases_explained = estimate_covered_bases(&stats_vec_seq, &sequence_sketch, sequence_sketch.mean_read_length, sequence_sketch.k);
+                    //    log::info!("{} has {:.2}% of reads detected in database by profile", &first_read_file, bases_explained * 100.);
+                    //}
 
-                    let total_cov = stats_vec_seq.iter().map(|x| x.final_est_cov).sum::<f64>();
-                    let total_seq_cov = stats_vec_seq.iter().map(|x| x.final_est_cov * x.genome_sketch.gn_size as f64).sum::<f64>();
+                    //let total_cov = stats_vec_seq.iter().map(|x| x.final_est_cov).sum::<f64>();
+                    //let total_seq_cov = stats_vec_seq.iter().map(|x| x.final_est_cov * x.genome_sketch.gn_size as f64).sum::<f64>();
+
+                    let total_assigned_kmers =  stats_vec_seq.iter().map(|x| x.assigned_kmers).sum::<u32>();
+                    
+                    
                     for thing in stats_vec_seq.iter_mut(){
-                        thing.rel_abund = Some(thing.final_est_cov/total_cov * 100.);
+                        //thing.seq_abund = Some(thing.final_est_cov * thing.genome_sketch.gn_size as f64 / total_seq_cov * 100. * bases_explained);
+                        thing.seq_abund = Some(thing.assigned_kmers as f64 / total_assigned_kmers as f64 * 100.);
                     }
+                    let total_abund = stats_vec_seq.iter().map(|x| x.assigned_kmers as f64 / total_assigned_kmers as f64 / x.genome_sketch.gn_size as f64).sum::<f64>();
                     for thing in stats_vec_seq.iter_mut(){
-                        thing.seq_abund = Some(thing.final_est_cov * thing.genome_sketch.gn_size as f64 / total_seq_cov * 100. * bases_explained);
+                        //thing.rel_abund = Some(thing.final_est_cov/total_cov * 100.);
+                        thing.rel_abund = Some(thing.assigned_kmers as f64 / total_assigned_kmers as f64 / thing.genome_sketch.gn_size as f64 / total_abund * 100.);
                     }
                 }
 
@@ -810,7 +817,7 @@ fn get_stats<'a>(
         rel_abund: None,
         seq_abund: None,
         kmers_lost: kmers_lost,
-
+        assigned_kmers: full_covs.iter().sum::<u32>(),
     };
     //log::trace!("Other time {:?}", Instant::now() - start_t_initial);
 
