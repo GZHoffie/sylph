@@ -629,27 +629,44 @@ fn get_stats<'a>(
     }
 
     let mut kmers_lost_count = 0;
-    for kmer in gn_kmers.iter() {
-        if sequence_sketch.kmer_counts.contains_key(kmer) {
-            if sequence_sketch.kmer_counts[kmer] == 0{
-                continue
-            }
-            if winner_map.is_some(){
-                let map = &winner_map.unwrap();
-                if map[kmer].1 != genome_sketch{
-                    kmers_lost_count += 1;
-                    continue
-                }
-                contain_count += 1;
-                covs.push(sequence_sketch.kmer_counts[kmer]);
+    
+    // variables for conditional containment index
+    let mut current_contig_number = None;
+    let mut previous_kmer_found = None;
+    let mut n_11 = 0;
+    let mut n_00 = 0;
+    let mut n_1 = 0;
+    let mut n = 0;
 
+    for kmer in gn_kmers.iter() {
+        // if the kmer is separator
+        if *kmer == KMER_SEPARATOR {
+            previous_kmer_found = None;
+            continue;
+        } else {
+            n += 1;
+            if sequence_sketch.kmer_counts.contains_key(kmer) && sequence_sketch.kmer_counts[kmer] != 0 {
+                if winner_map.is_some() {
+                    let map = &winner_map.unwrap();
+                    if map[kmer].1 != genome_sketch{
+                        kmers_lost_count += 1;
+                        continue
+                    }
+                    contain_count += 1;
+                    covs.push(sequence_sketch.kmer_counts[kmer]);
+
+                } else {
+                    contain_count += 1;
+                    covs.push(sequence_sketch.kmer_counts[kmer]);
+                }
+            } else {
+                if previous_kmer_found.is_none() || previous_kmer_found.unwrap() == false{
+                    n_00 += 1;
+                }
+                previous_kmer_found = Some(false);
             }
-            else{
-                contain_count += 1;
-                covs.push(sequence_sketch.kmer_counts[kmer]);
-            }
+        
         }
-    }
 
     if covs.is_empty() {
         return None;

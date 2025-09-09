@@ -603,7 +603,11 @@ pub fn sketch_genome(
         let mut last_contig = 0;
         for (contig, pos, km) in vec.iter() {
             if !duplicate_set.contains(&km) {
-                if last_pos == 0 || last_contig != *contig || pos - last_pos > min_spacing {
+                if last_contig != *contig {
+                    // push a separator to indicate a new contig
+                    new_vec.push(KMER_SEPARATOR);
+                }
+            if last_pos == 0 || last_contig != *contig || pos - last_pos > min_spacing {
                     new_vec.push(*km);
                     last_contig = *contig;
                     last_pos = *pos;
