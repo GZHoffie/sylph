@@ -621,7 +621,6 @@ fn get_stats<'a>(
         );
         std::process::exit(1);
     }
-    let mut contain_count = 0;
     let mut covs = vec![];
     let gn_kmers = &genome_sketch.genome_kmers;
     if (gn_kmers.len() as f64) < args.min_number_kmers{
@@ -631,12 +630,11 @@ fn get_stats<'a>(
     let mut kmers_lost_count = 0;
     
     // variables for conditional containment index
-    let mut current_contig_number = None;
-    let mut previous_kmer_found = None;
-    let mut n_11 = 0;
-    let mut n_00 = 0;
-    let mut n_1 = 0;
-    let mut n = 0;
+    let mut previous_kmer_found: Option<bool> = None;
+    let mut n_11: u32 = 0;
+    let mut n_00: u32 = 0;
+    let mut n_1: u32 = 0;
+    let mut n: u32 = 0;
 
     for kmer in gn_kmers.iter() {
         // if the kmer is separator
@@ -650,29 +648,42 @@ fn get_stats<'a>(
                     let map = &winner_map.unwrap();
                     if map[kmer].1 != genome_sketch{
                         kmers_lost_count += 1;
+                        previous_kmer_found = None;
                         continue
                     }
-                    contain_count += 1;
-                    covs.push(sequence_sketch.kmer_counts[kmer]);
-
-                } else {
-                    contain_count += 1;
+                }
+                if !previous_kmer_found.is_none() {
+                    n_1 += 1;
+                    if previous_kmer_found.unwrap() {
+                        n_11 += 1;
+                    }
                     covs.push(sequence_sketch.kmer_counts[kmer]);
                 }
+                previous_kmer_found = Some(true);
+
             } else {
-                if previous_kmer_found.is_none() || previous_kmer_found.unwrap() == false{
+                if previous_kmer_found == Some(false) {
                     n_00 += 1;
                 }
                 previous_kmer_found = Some(false);
             }
-        
         }
+    }
+
+    let p_1: f64 = (n_1 as f64) / (n as f64);
+    let p_11: f64 = if n_1 as f64 <= args.min_count_correct {0.} else {(n_11 as f64) / (n_1 as f64)};
+
+
 
     if covs.is_empty() {
         return None;
     }
     let naive_ani = f64::powf(
-        contain_count as f64 / gn_kmers.len() as f64,
+        p_1,
+        1. / genome_sketch.k as f64,
+    );
+    let naive_ani_1 = f64::powf(
+        p_11,
         1. / genome_sketch.k as f64,
     );
     covs.sort();
