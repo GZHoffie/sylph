@@ -686,6 +686,8 @@ fn get_stats<'a>(
         p_11,
         1. / genome_sketch.k as f64,
     );
+
+    // [NOTE] exclude outliers with very high coverage
     covs.sort();
     //let covs = &covs[0..covs.len() * 99 / 100];
     let median_cov = covs[covs.len() / 2] as f64;
@@ -703,7 +705,7 @@ fn get_stats<'a>(
     }
     log::trace!("COV VECTOR for {}/{}: {:?}, MAX_COV_THRESHOLD: {}", sequence_sketch.file_name, genome_sketch.file_name ,covs, max_cov);
 
-
+    // [NOTE] effective coverage estimation
     let mut full_covs = vec![0; gn_kmers.len() - contain_count];
     for cov in covs.iter() {
         if (*cov as f64) <= max_cov {
@@ -762,6 +764,7 @@ fn get_stats<'a>(
         opt_lambda = Some(final_est_cov)
     };
 
+    // [NOTE] Adjusted ANI estimation
     let opt_est_ani = ani_from_lambda(opt_lambda, mean_cov, sequence_sketch.k as f64, &full_covs);
     
     let final_est_ani;
@@ -771,6 +774,9 @@ fn get_stats<'a>(
         final_est_ani = opt_est_ani.unwrap();
     }
 
+
+    // [NOTE] If the estimated ANI is below threshold, exclude the genome
+    /*
     let min_ani = if args.minimum_ani.is_some() {args.minimum_ani.unwrap()/100. }
         else if args.pseudotax { MIN_ANI_P_DEF } 
         else { MIN_ANI_DEF };
@@ -786,7 +792,25 @@ fn get_stats<'a>(
                     kmers_lost_count,
                     contain_count)
             }
-
+        }
+        return None;
+    }
+    */
+    let min_ani1 = if args.minimum_ani.is_some() {args.minimum_ani.unwrap() / 100. }
+        else if args.pseudotax { MIN_ANI1_P_DEF } 
+        else { MIN_ANI1_DEF };
+    if final_est_ani < min_ani {
+        if winner_map.is_some(){
+            //Used to be > min ani, now it is not after reassignment
+            if log_reassign{
+                log::info!("Genome/contig {}/{} has ANI = {} < {} after reassigning {} k-mers ({} contained k-mers after reassign)", 
+                    genome_sketch.file_name,
+                    genome_sketch.first_contig_name,
+                    final_est_ani * 100.,
+                    min_ani * 100.,
+                    kmers_lost_count,
+                    contain_count)
+            }
         }
         return None;
     }
@@ -872,6 +896,10 @@ fn ani_from_lambda(lambda: Option<f64>, _mean: f64, k: f64, full_cov: &[u32]) ->
         }
     }
     return ret_ani;
+}
+
+fn ani1_from_lambda(lambda: Option<f64>, expected_read_length: f64, expected_error_rate: f64, p_11: f64) -> Option<f64> {
+    
 }
 
 fn bootstrap_interval(

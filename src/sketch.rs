@@ -7,6 +7,7 @@ use fxhash::FxHashSet;
 use fxhash::FxHasher;
 use memory_stats::memory_stats;
 use std::fs;
+use std::hash::Hash;
 use std::thread;
 use std::time::Duration;
 
@@ -912,6 +913,10 @@ pub fn sketch_sequences_needle(
     let mut counter = 0.;
     let mut kmer_to_pair_table = FxHashSet::default();
     let mut num_dup_removed = 0;
+    let mut total_sketched_kmers: usize = 0;
+    let mut total_reads: usize = 0;
+    let mut total_error_rate: f64 = 0.;
+    let mut total_qual_bases: usize = 0;
 
     if !reader.is_ok() {
         warn!("{} is not a valid fasta/fastq file; skipping.", ref_file);
@@ -923,6 +928,7 @@ pub fn sketch_sequences_needle(
                 let mut vec = vec![];
                 let record = record.expect(&format!("Invalid record for file {} ", ref_file));
                 let seq = record.seq();
+                let qual = record.qual();
                 let kmer_pair;
                 if seq.len() > 400 {
                     kmer_pair = None;
@@ -941,6 +947,20 @@ pub fn sketch_sequences_needle(
                         Some(MAX_DEDUP_COUNT),
                     );
                 }
+                // Update quality base counts
+                if qual.is_some() {
+                    for q in qual.unwrap() {
+                        // assuming Phred+33
+                        total_error_rate += BYTE_TO_ERROR_RATE[*q as usize];
+                    }
+                    total_qual_bases += qual.unwrap().len();
+                }
+                // Find the average number of sketched k-mers per read
+                total_sketched_kmers += vec.len();
+                if vec.len() > 0 {
+                    total_reads += 1;
+                }
+
                 //moving average
                 counter += 1.;
                 mean_read_length =
@@ -951,6 +971,18 @@ pub fn sketch_sequences_needle(
         }
     }
 
+    // Calculate average number of sketched k-mers per read and average read error rate
+    let average_kmers_per_read = if total_reads > 0 {
+        total_sketched_kmers as f64 / total_reads as f64
+    } else {
+        0.
+    };
+    let average_error_rate = if total_qual_bases > 0 {
+        total_error_rate / total_qual_bases as f64
+    } else {
+        0.
+    };
+
     return Some(SequencesSketch {
         kmer_counts: kmer_map,
         file_name: read_file.to_string(),
@@ -959,5 +991,7 @@ pub fn sketch_sequences_needle(
         paired: false,
         sample_name: sample_name,
         mean_read_length,
+        average_kmers_per_read,
+        average_error_rate,
     });
 }
