@@ -899,6 +899,9 @@ fn ani_from_lambda(lambda: Option<f64>, _mean: f64, k: f64, full_cov: &[u32]) ->
 }
 
 fn ani1_from_lambda(lambda: Option<f64>, expected_read_length: f64, expected_error_rate: f64, p_11: f64) -> Option<f64> {
+    if lambda.is_none() {
+        return None;
+    }
     
 }
 
