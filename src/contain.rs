@@ -844,6 +844,8 @@ fn get_stats<'a>(
     let ani_result = AniResult {
         naive_ani,
         final_est_ani,
+        naive_ani1,
+        final_est_ani1,
         final_est_cov,
         seq_name: seq_name,
         gn_name: genome_sketch.file_name.as_str(),

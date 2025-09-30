@@ -190,6 +190,8 @@ pub struct MultGenomeSketch{
 pub struct AniResult<'a>{
     pub naive_ani: f64,
     pub final_est_ani: f64,
+    pub naive_ani1: f64,
+    pub final_est_ani1: f64,
     pub final_est_cov: f64,
     pub seq_name: String,
     pub gn_name: &'a str,

@@ -34,11 +34,19 @@ pub unsafe fn extract_markers_avx2(string: &[u8], kmer_vec: &mut Vec<u64>, c: us
     if string.len() < k {
         return;
     }
+
     let len = (string.len() - k + 1) / 4;
+
     let string1 = &string[0..len + k - 1];
     let string2 = &string[len..2 * len + k - 1];
     let string3 = &string[2 * len..3 * len + k - 1];
     let string4 = &string[3 * len..4 * len + k - 1];
+
+    let kmer_vec1 = &mut Vec::new();
+    let kmer_vec2 = &mut Vec::new();
+    let kmer_vec3 = &mut Vec::new();
+    let kmer_vec4 = &mut Vec::new();
+
     if string.len() < k+1{
         return;
     }
@@ -133,18 +141,24 @@ pub unsafe fn extract_markers_avx2(string: &[u8], kmer_vec: &mut Vec<u64>, c: us
         //        let m4 = _mm256_extract_epi64(threshold_256, 3);
 
         if v1 < threshold_marker {
-            kmer_vec.push(v1 as u64);
+            kmer_vec1.push(v1 as u64);
         }
         if v2 < threshold_marker {
-            kmer_vec.push(v2 as u64);
+            kmer_vec2.push(v2 as u64);
         }
         if v3 < threshold_marker {
-            kmer_vec.push(v3 as u64);
+            kmer_vec3.push(v3 as u64);
         }
         if v4 < threshold_marker {
-            kmer_vec.push(v4 as u64);
+            kmer_vec4.push(v4 as u64);
         }
     }
+
+    // append all four vectors to the main vector
+    kmer_vec.append(kmer_vec1);
+    kmer_vec.append(kmer_vec2);
+    kmer_vec.append(kmer_vec3);
+    kmer_vec.append(kmer_vec4);
 }
 
 #[target_feature(enable = "avx2")]
