@@ -154,13 +154,13 @@ pub struct SequencesSketch{
     pub sample_name: Option<String>,
     pub paired: bool,
     pub mean_read_length: f64,
-    pub average_kmers_per_read: f64,
+    pub average_inv_kmers_per_read: f64,
     pub average_error_rate: f64,
 }
 
 impl SequencesSketch{
-    pub fn new(file_name: String, c: usize, k: usize, paired: bool, sample_name: Option<String>, mean_read_length: f64) -> SequencesSketch{
-        return SequencesSketch{kmer_counts : HashMap::default(), file_name, c, k, paired, sample_name, mean_read_length}
+    pub fn new(file_name: String, c: usize, k: usize, paired: bool, sample_name: Option<String>, mean_read_length: f64, average_inv_kmers_per_read: f64, average_error_rate: f64) -> SequencesSketch{
+        return SequencesSketch{kmer_counts : HashMap::default(), file_name, c, k, paired, sample_name, mean_read_length, average_inv_kmers_per_read, average_error_rate}
     }
 }
 
@@ -190,8 +190,8 @@ pub struct MultGenomeSketch{
 pub struct AniResult<'a>{
     pub naive_ani: f64,
     pub final_est_ani: f64,
-    pub naive_ani1: f64,
-    pub final_est_ani1: f64,
+    pub naive_ani_1: f64,
+    pub final_est_ani_1: f64,
     pub final_est_cov: f64,
     pub seq_name: String,
     pub gn_name: &'a str,

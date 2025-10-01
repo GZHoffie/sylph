@@ -53,7 +53,7 @@ fn print_ani_result(ani_result: &AniResult, pseudotax: bool, writer: &mut Box<dy
 
     if !pseudotax{
         writeln!(writer, 
-            "{}\t{}\t{}\t{:.3}\t{}\t{}\t{}\t{:.0}\t{:.3}\t{}/{}\t{:.2}\t{}",
+            "{}\t{}\t{}\t{:.3}\t{}\t{}\t{}\t{:.0}\t{:.3}\t{}/{}\t{:.2}\t{}\t{}\t{}\t{}/{}",
             ani_result.seq_name,
             ani_result.gn_name,
             print_final_ani,
@@ -67,11 +67,15 @@ fn print_ani_result(ani_result: &AniResult, pseudotax: bool, writer: &mut Box<dy
             ani_result.containment_index.1,
             ani_result.naive_ani * 100.,
             ani_result.contig_name,
+            ani_result.naive_ani_1 * 100.,
+            ani_result.final_est_ani_1 * 100.,
+            ani_result.conditional_containment_index.0,
+            ani_result.conditional_containment_index.1,
         ).expect("Error writing to file");
     }
     else{
         writeln!(writer,
-            "{}\t{}\t{:.4}\t{:.4}\t{}\t{:.3}\t{}\t{}\t{}\t{:.0}\t{:.3}\t{}/{}\t{:.2}\t{}\t{}",
+            "{}\t{}\t{:.4}\t{:.4}\t{}\t{:.3}\t{}\t{}\t{}\t{:.0}\t{:.3}\t{}/{}\t{:.2}\t{}\t{}\t{}\t{}\t{}/{}",
             ani_result.seq_name,
             ani_result.gn_name,
             ani_result.rel_abund.unwrap(),
@@ -88,6 +92,10 @@ fn print_ani_result(ani_result: &AniResult, pseudotax: bool, writer: &mut Box<dy
             ani_result.naive_ani * 100.,
             ani_result.kmers_lost.unwrap(),
             ani_result.contig_name,
+            ani_result.naive_ani_1 * 100.,
+            ani_result.final_est_ani_1 * 100.,
+            ani_result.conditional_containment_index.0,
+            ani_result.conditional_containment_index.1,
         ).expect("Error writing to file");
 
     }
@@ -474,7 +482,7 @@ fn print_header(pseudotax: bool, writer: &mut Box<dyn Write + Send>, estimate_un
             cov_head = "Eff_cov";
         }
         writeln!(writer,
-            "Sample_file\tGenome_file\tTaxonomic_abundance\tSequence_abundance\tAdjusted_ANI\t{}\tANI_5-95_percentile\tEff_lambda\tLambda_5-95_percentile\tMedian_cov\tMean_cov_geq1\tContainment_ind\tNaive_ANI\tkmers_reassigned\tContig_name", cov_head
+            "Sample_file\tGenome_file\tTaxonomic_abundance\tSequence_abundance\tAdjusted_ANI\t{}\tANI_5-95_percentile\tEff_lambda\tLambda_5-95_percentile\tMedian_cov\tMean_cov_geq1\tContainment_ind\tNaive_ANI\tkmers_reassigned\tContig_name\tNaive_ANI_1\tAdjusted_ANI_1\tConditional_containment_ind", cov_head
             ).expect("Error writing to file.");
     }
 }
@@ -706,7 +714,7 @@ fn get_stats<'a>(
     log::trace!("COV VECTOR for {}/{}: {:?}, MAX_COV_THRESHOLD: {}", sequence_sketch.file_name, genome_sketch.file_name ,covs, max_cov);
 
     // [NOTE] effective coverage estimation
-    let mut full_covs = vec![0; gn_kmers.len() - contain_count];
+    let mut full_covs = vec![0; gn_kmers.len() - n_1 as usize];
     for cov in covs.iter() {
         if (*cov as f64) <= max_cov {
             full_covs.push(*cov);
@@ -796,10 +804,14 @@ fn get_stats<'a>(
         return None;
     }
     */
-    let min_ani1 = if args.minimum_ani.is_some() {args.minimum_ani.unwrap() / 100. }
+    let final_est_ani_1 = {
+        let prod = sequence_sketch.average_inv_kmers_per_read * (1. - sequence_sketch.average_error_rate).powf(sequence_sketch.k as f64);
+        naive_ani / (1. - (1. - prod) * (- (2. - prod) / 2. * final_est_cov * (1. - sequence_sketch.average_error_rate).powf(sequence_sketch.k as f64))).powf(1. / (sequence_sketch.k as f64).exp())
+    };
+    let min_ani_1 = if args.minimum_ani.is_some() { args.minimum_ani.unwrap() / 100. }
         else if args.pseudotax { MIN_ANI1_P_DEF } 
         else { MIN_ANI1_DEF };
-    if final_est_ani < min_ani {
+    if final_est_ani_1 < min_ani_1 {
         if winner_map.is_some(){
             //Used to be > min ani, now it is not after reassignment
             if log_reassign{
@@ -807,9 +819,9 @@ fn get_stats<'a>(
                     genome_sketch.file_name,
                     genome_sketch.first_contig_name,
                     final_est_ani * 100.,
-                    min_ani * 100.,
+                    min_ani_1 * 100.,
                     kmers_lost_count,
-                    contain_count)
+                    n_1)
             }
         }
         return None;
@@ -844,15 +856,16 @@ fn get_stats<'a>(
     let ani_result = AniResult {
         naive_ani,
         final_est_ani,
-        naive_ani1,
-        final_est_ani1,
+        naive_ani_1,
+        final_est_ani_1,
         final_est_cov,
         seq_name: seq_name,
         gn_name: genome_sketch.file_name.as_str(),
         contig_name: genome_sketch.first_contig_name.as_str(),
         mean_cov: geq1_mean_cov,
         median_cov,
-        containment_index: (contain_count, gn_kmers.len()),
+        containment_index: (n_1.try_into().unwrap(), gn_kmers.len()),
+        conditional_containment_index: (n_11.try_into().unwrap(), n_1.try_into().unwrap()),
         lambda: use_lambda,
         ani_ci: (low_ani, high_ani),
         lambda_ci: (low_lambda, high_lambda),
@@ -900,12 +913,6 @@ fn ani_from_lambda(lambda: Option<f64>, _mean: f64, k: f64, full_cov: &[u32]) ->
     return ret_ani;
 }
 
-fn ani1_from_lambda(lambda: Option<f64>, expected_read_length: f64, expected_error_rate: f64, p_11: f64) -> Option<f64> {
-    if lambda.is_none() {
-        return None;
-    }
-    
-}
 
 fn bootstrap_interval(
     covs_full: &Vec<u32>,

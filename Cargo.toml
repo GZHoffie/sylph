@@ -1,5 +1,5 @@
 [package]
-name = "sylph-o"
+name = "sylph"
 version = "0.8.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"

@@ -784,7 +784,7 @@ pub fn sketch_pair_sequences(
 ) -> Option<SequencesSketch> {
     let r1o = parse_fastx_file(&read_file1);
     let r2o = parse_fastx_file(&read_file2);
-    let mut read_sketch = SequencesSketch::new(read_file1.to_string(), c, k, true, sample_name, 0.);
+    let mut read_sketch = SequencesSketch::new(read_file1.to_string(), c, k, true, sample_name, 0., 0., 0.);
     if r1o.is_err() || r2o.is_err() {
         log::error!("Paired end reading failed for '{}' and '{}'. Make sure the files are present or the sequences are valid.", read_file1, read_file2);
         std::process::exit(1);
@@ -913,10 +913,9 @@ pub fn sketch_sequences_needle(
     let mut counter = 0.;
     let mut kmer_to_pair_table = FxHashSet::default();
     let mut num_dup_removed = 0;
-    let mut total_sketched_kmers: usize = 0;
+    let mut total_inv_sketched_kmers: f64 = 0.;
     let mut total_reads: usize = 0;
-    let mut total_error_rate: f64 = 0.;
-    let mut total_qual_bases: usize = 0;
+    let mut quality_bases_map: HashMap<u8, usize> = HashMap::default();
 
     if !reader.is_ok() {
         warn!("{} is not a valid fasta/fastq file; skipping.", ref_file);
@@ -936,6 +935,7 @@ pub fn sketch_sequences_needle(
                     kmer_pair = pair_kmer_single(&seq);
                 }
                 extract_markers(&seq, &mut vec, c, k);
+                let num_sketched_kmers = vec.len();
                 for km in vec {
                     dup_removal_lsh_full_exact(
                         &mut kmer_map,
@@ -951,13 +951,13 @@ pub fn sketch_sequences_needle(
                 if qual.is_some() {
                     for q in qual.unwrap() {
                         // assuming Phred+33
-                        total_error_rate += BYTE_TO_ERROR_RATE[*q as usize];
+                        *quality_bases_map.entry(*q).or_insert(0) += 1;
                     }
-                    total_qual_bases += qual.unwrap().len();
                 }
+                
                 // Find the average number of sketched k-mers per read
-                total_sketched_kmers += vec.len();
-                if vec.len() > 0 {
+                total_inv_sketched_kmers += 1.0 as f64 / num_sketched_kmers as f64;
+                if num_sketched_kmers > 0 {
                     total_reads += 1;
                 }
 
@@ -972,16 +972,36 @@ pub fn sketch_sequences_needle(
     }
 
     // Calculate average number of sketched k-mers per read and average read error rate
-    let average_kmers_per_read = if total_reads > 0 {
-        total_sketched_kmers as f64 / total_reads as f64
+    let average_inv_kmers_per_read = if total_reads > 0 {
+        total_inv_sketched_kmers as f64 / total_reads as f64
     } else {
         0.
     };
-    let average_error_rate = if total_qual_bases > 0 {
-        total_error_rate / total_qual_bases as f64
+    let average_error_rate = if !quality_bases_map.is_empty() {
+        let total_bases: usize = quality_bases_map.values().sum();
+        let total_error: f64 = quality_bases_map
+            .iter()
+            .map(|(q, count)| {
+                let prob = 10f64.powf(-((*q as f64 - 33.) / 10.));
+                prob * (*count as f64)
+            })
+            .sum();
+        total_error / total_bases as f64
     } else {
         0.
     };
+
+    println!(
+        "Estimated average read error rate for {}: {:.4}%",
+        read_file,
+        average_error_rate * 100.,
+    );
+
+    println!(
+        "Average of inverse sketched k-mers per read for {}: {:.4}",
+        read_file,
+        average_inv_kmers_per_read,
+    );
 
     return Some(SequencesSketch {
         kmer_counts: kmer_map,
@@ -991,7 +1011,7 @@ pub fn sketch_sequences_needle(
         paired: false,
         sample_name: sample_name,
         mean_read_length,
-        average_kmers_per_read,
+        average_inv_kmers_per_read,
         average_error_rate,
     });
 }
