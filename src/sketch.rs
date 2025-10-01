@@ -956,8 +956,9 @@ pub fn sketch_sequences_needle(
                 }
                 
                 // Find the average number of sketched k-mers per read
-                total_inv_sketched_kmers += 1.0 as f64 / num_sketched_kmers as f64;
+                
                 if num_sketched_kmers > 0 {
+                    total_inv_sketched_kmers += 1.0 as f64 / num_sketched_kmers as f64;
                     total_reads += 1;
                 }
 

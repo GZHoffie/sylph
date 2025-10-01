@@ -53,7 +53,7 @@ fn print_ani_result(ani_result: &AniResult, pseudotax: bool, writer: &mut Box<dy
 
     if !pseudotax{
         writeln!(writer, 
-            "{}\t{}\t{}\t{:.3}\t{}\t{}\t{}\t{:.0}\t{:.3}\t{}/{}\t{:.2}\t{}\t{}\t{}\t{}/{}",
+            "{}\t{}\t{}\t{:.3}\t{}\t{}\t{}\t{:.0}\t{:.3}\t{}/{}\t{:.2}\t{}\t{:.3}\t{:.3}\t{}/{}",
             ani_result.seq_name,
             ani_result.gn_name,
             print_final_ani,
@@ -75,7 +75,7 @@ fn print_ani_result(ani_result: &AniResult, pseudotax: bool, writer: &mut Box<dy
     }
     else{
         writeln!(writer,
-            "{}\t{}\t{:.4}\t{:.4}\t{}\t{:.3}\t{}\t{}\t{}\t{:.0}\t{:.3}\t{}/{}\t{:.2}\t{}\t{}\t{}\t{}\t{}/{}",
+            "{}\t{}\t{:.4}\t{:.4}\t{}\t{:.3}\t{}\t{}\t{}\t{:.0}\t{:.3}\t{}/{}\t{:.2}\t{}\t{}\t{:.3}\t{:.3}\t{}/{}",
             ani_result.seq_name,
             ani_result.gn_name,
             ani_result.rel_abund.unwrap(),
@@ -804,9 +804,11 @@ fn get_stats<'a>(
         return None;
     }
     */
+    println!("{}, {}", sequence_sketch.average_inv_kmers_per_read, sequence_sketch.average_error_rate);
     let final_est_ani_1 = {
-        let prod = sequence_sketch.average_inv_kmers_per_read * (1. - sequence_sketch.average_error_rate).powf(sequence_sketch.k as f64);
-        naive_ani / (1. - (1. - prod) * (- (2. - prod) / 2. * final_est_cov * (1. - sequence_sketch.average_error_rate).powf(sequence_sketch.k as f64))).powf(1. / (sequence_sketch.k as f64).exp())
+        let kmer_correct_rate = 0.5; //(1. - sequence_sketch.average_error_rate).powf(sequence_sketch.k as f64);
+        let prod = (1. - sequence_sketch.average_inv_kmers_per_read) * kmer_correct_rate;
+        (p_11 / (1. - (1. - prod) * (- (2. - prod) / 2. * final_est_cov * kmer_correct_rate).exp())).powf(1. / (sequence_sketch.k as f64))
     };
     let min_ani_1 = if args.minimum_ani.is_some() { args.minimum_ani.unwrap() / 100. }
         else if args.pseudotax { MIN_ANI1_P_DEF } 
