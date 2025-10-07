@@ -629,51 +629,77 @@ fn get_stats<'a>(
         );
         std::process::exit(1);
     }
-    let mut covs = vec![];
     let gn_kmers = &genome_sketch.genome_kmers;
     if (gn_kmers.len() as f64) < args.min_number_kmers{
         return None
     }
 
     let mut kmers_lost_count = 0;
+
+    // [EXPERIMENTAL] Mask the k-mers with very high counts
+    // First turn the kmers into a vector of counts
+    let mut kmer_counts: Vec<u32> = vec![];
+    let mut total_zeros = 0;
+    let mut total_count = 0;
+
+    for kmer in gn_kmers.iter() {
+        if *kmer == KMER_SEPARATOR {
+            kmer_counts.push(KMER_COV_SEPARATOR);
+            continue;
+        }
+        total_count += 1;
+
+        if sequence_sketch.kmer_counts.contains_key(kmer) && sequence_sketch.kmer_counts[kmer] != 0 {
+            if winner_map.is_some() {
+                let map = &winner_map.unwrap();
+                if map[kmer].1 != genome_sketch{
+                    kmers_lost_count += 1;
+                    kmer_counts.push(KMER_COV_SEPARATOR);
+                    continue
+                }
+            }
+            kmer_counts.push(sequence_sketch.kmer_counts[kmer]);
+        } else {
+            kmer_counts.push(0);
+            total_zeros += 1;
+        }
+    }
+
+    // Calculate the containment index and mask the kmer counts with very high counts
+    let containment_index = (total_count - total_zeros - kmers_lost_count) as f64 / (total_count - kmers_lost_count) as f64;
+    if containment_index.powf(1. / genome_sketch.k as f64) < MIN_ANI_P_DEF {
+        // assume an ANI of at least min_ani, and calculate the minimum number of k-mers that should be found
+        let estimated_lambda = - (1. - containment_index / MIN_ANI_P_DEF.powf(genome_sketch.k as f64)).ln();
+        let pois = Poisson::new(estimated_lambda).unwrap();
+        let threshold = pois.inverse_cdf(1. - CUTOFF_PVALUE) as u32;
+
+        // mask the k-mers with very high counts with a separator
+        for i in 0..kmer_counts.len() {
+            if kmer_counts[i] > threshold && kmer_counts[i] != KMER_COV_SEPARATOR {
+                kmer_counts[i] = KMER_COV_SEPARATOR;
+                //kmers_lost_count += 1;
+            }
+        }
+    }
     
     // variables for conditional containment index
-    let mut previous_kmer_found: Option<bool> = None;
     let mut n_11: u32 = 0;
-    let mut n_00: u32 = 0;
     let mut n_1: u32 = 0;
     let mut n: u32 = 0;
 
-    for kmer in gn_kmers.iter() {
+    for i in 0..kmer_counts.len() {
         // if the kmer is separator
-        if *kmer == KMER_SEPARATOR {
-            previous_kmer_found = None;
+        if kmer_counts[i] == KMER_COV_SEPARATOR {
             continue;
         } else {
             n += 1;
-            if sequence_sketch.kmer_counts.contains_key(kmer) && sequence_sketch.kmer_counts[kmer] != 0 {
-                if winner_map.is_some() {
-                    let map = &winner_map.unwrap();
-                    if map[kmer].1 != genome_sketch{
-                        kmers_lost_count += 1;
-                        previous_kmer_found = None;
-                        continue
-                    }
+            if kmer_counts[i] > 0 {
+                n_1 += 1;
+                if i > 0 && 
+                   kmer_counts[i] > 1 && 
+                   kmer_counts[i - 1] != KMER_COV_SEPARATOR {
+                    n_11 += 1;
                 }
-                if !previous_kmer_found.is_none() {
-                    n_1 += 1;
-                    if previous_kmer_found.unwrap() {
-                        n_11 += 1;
-                    }
-                    covs.push(sequence_sketch.kmer_counts[kmer]);
-                }
-                previous_kmer_found = Some(true);
-
-            } else {
-                if previous_kmer_found == Some(false) {
-                    n_00 += 1;
-                }
-                previous_kmer_found = Some(false);
             }
         }
     }
@@ -683,7 +709,7 @@ fn get_stats<'a>(
 
 
 
-    if covs.is_empty() {
+    if n_1 <= NUM_KMER_THRESHOLD {
         return None;
     }
     let naive_ani = f64::powf(
@@ -696,6 +722,14 @@ fn get_stats<'a>(
     );
 
     // [NOTE] exclude outliers with very high coverage
+    // [FIXME] Test if this is needed?
+    // exclude the KMER_COV_SEPARATOR values
+    let mut covs: Vec<u32> = vec![];
+    for cov in kmer_counts.iter() {
+        if *cov != KMER_COV_SEPARATOR {
+            covs.push(*cov);
+        }
+    }
     covs.sort();
     //let covs = &covs[0..covs.len() * 99 / 100];
     let median_cov = covs[covs.len() / 2] as f64;
@@ -744,7 +778,7 @@ fn get_stats<'a>(
             test_lambda = ratio_lambda(&full_covs, args.min_count_correct)
         };
         if test_lambda.is_none() {
-            use_lambda = AdjustStatus::Low
+            use_lambda = AdjustStatus::Lambda(p_1);
         } else {
             use_lambda = AdjustStatus::Lambda(test_lambda.unwrap());
         }
@@ -804,8 +838,8 @@ fn get_stats<'a>(
         return None;
     }
     */
-    println!("{}, {}", sequence_sketch.average_inv_kmers_per_read, sequence_sketch.average_error_rate);
     let final_est_ani_1 = {
+        // [FIXME] This is a temporary fix, need to properly account for sequencing error
         let kmer_correct_rate = 0.5; //(1. - sequence_sketch.average_error_rate).powf(sequence_sketch.k as f64);
         let prod = (1. - sequence_sketch.average_inv_kmers_per_read) * kmer_correct_rate;
         (p_11 / (1. - (1. - prod) * (- (2. - prod) / 2. * final_est_cov * kmer_correct_rate).exp())).powf(1. / (sequence_sketch.k as f64))

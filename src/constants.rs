@@ -17,4 +17,7 @@ pub const MAX_DEDUP_COUNT: u32 = 4;
 pub const MAX_DEDUP_LEN: usize = 10000000;
 pub const DEFAULT_FPR: f64 = 0.0001;
 pub const MED_KMER_FOR_ID_EST: f64 = 3.;
+// for separators in k-mer vector/k-mer coverage vector
 pub const KMER_SEPARATOR: u64 = u64::MAX;
+pub const KMER_COV_SEPARATOR: u32 = u32::MAX;
+pub const NUM_KMER_THRESHOLD: u32 = 5;
