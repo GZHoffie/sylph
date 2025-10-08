@@ -744,10 +744,23 @@ fn get_stats<'a>(
     }
     covs.sort();
     //let covs = &covs[0..covs.len() * 99 / 100];
+    /*
     println!("COVS LEN {}", covs.len());
     let median_cov = covs[covs.len() / 2] as f64;
-    println!("Median coverage: {}", median_cov);
-    //log::trace!("COV VECTOR for {}/{}: {:?}, MAX_COV_THRESHOLD: {}", sequence_sketch.file_name, genome_sketch.file_name ,covs, max_cov);
+    let pois = Poisson::new(median_cov).unwrap();
+    let mut max_cov = f64::MAX;
+    if median_cov < 30.{
+        for i in covs.len() / 2..covs.len(){
+            let cov = covs[i];
+            if pois.cdf(cov.into()) < CUTOFF_PVALUE {
+                max_cov = cov as f64;
+            } else {
+                break;
+            }
+        }
+    }
+    log::trace!("COV VECTOR for {}/{}: {:?}, MAX_COV_THRESHOLD: {}", sequence_sketch.file_name, genome_sketch.file_name ,covs, max_cov);
+    */
 
     // [NOTE] effective coverage estimation
     let mut full_covs = vec![0; gn_kmers.len() - n_1 as usize];
