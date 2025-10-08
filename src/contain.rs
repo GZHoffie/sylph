@@ -667,21 +667,33 @@ fn get_stats<'a>(
 
     // Calculate the containment index and mask the kmer counts with very high counts
     let containment_index = (total_count - total_zeros - kmers_lost_count) as f64 / (total_count - kmers_lost_count) as f64;
-    if containment_index.powf(1. / genome_sketch.k as f64) < MIN_ANI_P_DEF {
+    let estimated_lambda = - (1. - containment_index / MIN_ANI_P_DEF.powf(genome_sketch.k as f64)).ln();
+    let condition = containment_index < 0.8 * MIN_ANI_P_DEF.powf(genome_sketch.k as f64);
+    println!("Containment index: {}, estimated lambda: {}, condition: {}", containment_index, estimated_lambda, condition);
+    /*
+    if containment_index < 0.8 * MIN_ANI_P_DEF.powf(genome_sketch.k as f64) {
         // assume an ANI of at least min_ani, and calculate the minimum number of k-mers that should be found
-        let estimated_lambda = - (1. - containment_index / MIN_ANI_P_DEF.powf(genome_sketch.k as f64)).ln();
-        let pois = Poisson::new(estimated_lambda).unwrap();
-        let threshold = pois.inverse_cdf(1. - CUTOFF_PVALUE) as u32;
+        println!("Containment index: {}, estimated lambda: {}", containment_index, estimated_lambda);
+        match Poisson::new(estimated_lambda) {
+            Ok(pois) => {
+                let threshold = pois.inverse_cdf(1. - CUTOFF_PVALUE) as u32;
+                println!("Constructed Poisson distribution, threshold: {}", threshold);
 
-        // mask the k-mers with very high counts with a separator
-        for i in 0..kmer_counts.len() {
-            if kmer_counts[i] > threshold && kmer_counts[i] != KMER_COV_SEPARATOR {
-                kmer_counts[i] = KMER_COV_SEPARATOR;
-                //kmers_lost_count += 1;
+                // mask the k-mers with very high counts with a separator
+                for i in 0..kmer_counts.len() {
+                    if kmer_counts[i] > threshold && kmer_counts[i] != KMER_COV_SEPARATOR {
+                        kmer_counts[i] = KMER_COV_SEPARATOR;
+                        kmers_lost_count += 1;
+                    }
+                }
+            }
+            Err(e) => {
+                println!("Error constructing Poisson distribution: {}", e);
             }
         }
     }
-    
+        */
+
     // variables for conditional containment index
     let mut n_11: u32 = 0;
     let mut n_1: u32 = 0;
@@ -696,7 +708,7 @@ fn get_stats<'a>(
             if kmer_counts[i] > 0 {
                 n_1 += 1;
                 if i > 0 && 
-                   kmer_counts[i] > 1 && 
+                   kmer_counts[i - 1] > 0 && 
                    kmer_counts[i - 1] != KMER_COV_SEPARATOR {
                     n_11 += 1;
                 }
@@ -732,27 +744,15 @@ fn get_stats<'a>(
     }
     covs.sort();
     //let covs = &covs[0..covs.len() * 99 / 100];
+    println!("COVS LEN {}", covs.len());
     let median_cov = covs[covs.len() / 2] as f64;
-    let pois = Poisson::new(median_cov).unwrap();
-    let mut max_cov = f64::MAX;
-    if median_cov < 30.{
-        for i in covs.len() / 2..covs.len(){
-            let cov = covs[i];
-            if pois.cdf(cov.into()) < CUTOFF_PVALUE {
-                max_cov = cov as f64;
-            } else {
-                break;
-            }
-        }
-    }
-    log::trace!("COV VECTOR for {}/{}: {:?}, MAX_COV_THRESHOLD: {}", sequence_sketch.file_name, genome_sketch.file_name ,covs, max_cov);
+    println!("Median coverage: {}", median_cov);
+    //log::trace!("COV VECTOR for {}/{}: {:?}, MAX_COV_THRESHOLD: {}", sequence_sketch.file_name, genome_sketch.file_name ,covs, max_cov);
 
     // [NOTE] effective coverage estimation
     let mut full_covs = vec![0; gn_kmers.len() - n_1 as usize];
     for cov in covs.iter() {
-        if (*cov as f64) <= max_cov {
-            full_covs.push(*cov);
-        }
+        full_covs.push(*cov);
     }
     let var = var(&full_covs);
     if var.is_some(){
