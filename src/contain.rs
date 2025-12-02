@@ -53,7 +53,7 @@ fn print_ani_result(ani_result: &AniResult, pseudotax: bool, writer: &mut Box<dy
 
     if !pseudotax{
         writeln!(writer, 
-            "{}\t{}\t{}\t{:.3}\t{}\t{}\t{}\t{:.0}\t{:.3}\t{}/{}\t{:.2}\t{}\t{:.3}\t{:.3}\t{}/{}",
+            "{}\t{}\t{}\t{:.3}\t{}\t{}\t{}\t{:.0}\t{:.3}\t{}/{}\t{:.2}\t{}\t{:.3}\t{:.3}\t{}/{}\t{:?}",
             ani_result.seq_name,
             ani_result.gn_name,
             print_final_ani,
@@ -71,11 +71,12 @@ fn print_ani_result(ani_result: &AniResult, pseudotax: bool, writer: &mut Box<dy
             ani_result.final_est_ani_1 * 100.,
             ani_result.conditional_containment_index.0,
             ani_result.conditional_containment_index.1,
+            ani_result.kmer_coverage_vec.as_ref().unwrap(),
         ).expect("Error writing to file");
     }
     else{
         writeln!(writer,
-            "{}\t{}\t{:.4}\t{:.4}\t{}\t{:.3}\t{}\t{}\t{}\t{:.0}\t{:.3}\t{}/{}\t{:.2}\t{}\t{}\t{:.3}\t{:.3}\t{}/{}",
+            "{}\t{}\t{:.4}\t{:.4}\t{}\t{:.3}\t{}\t{}\t{}\t{:.0}\t{:.3}\t{}/{}\t{:.2}\t{}\t{}\t{:.3}\t{:.3}\t{}/{}\t{:?}",
             ani_result.seq_name,
             ani_result.gn_name,
             ani_result.rel_abund.unwrap(),
@@ -96,6 +97,7 @@ fn print_ani_result(ani_result: &AniResult, pseudotax: bool, writer: &mut Box<dy
             ani_result.final_est_ani_1 * 100.,
             ani_result.conditional_containment_index.0,
             ani_result.conditional_containment_index.1,
+            ani_result.kmer_coverage_vec.as_ref().unwrap(),
         ).expect("Error writing to file");
 
     }
@@ -482,7 +484,7 @@ fn print_header(pseudotax: bool, writer: &mut Box<dyn Write + Send>, estimate_un
             cov_head = "Eff_cov";
         }
         writeln!(writer,
-            "Sample_file\tGenome_file\tTaxonomic_abundance\tSequence_abundance\tAdjusted_ANI\t{}\tANI_5-95_percentile\tEff_lambda\tLambda_5-95_percentile\tMedian_cov\tMean_cov_geq1\tContainment_ind\tNaive_ANI\tkmers_reassigned\tContig_name\tNaive_ANI_1\tAdjusted_ANI_1\tConditional_containment_ind", cov_head
+            "Sample_file\tGenome_file\tTaxonomic_abundance\tSequence_abundance\tAdjusted_ANI\t{}\tANI_5-95_percentile\tEff_lambda\tLambda_5-95_percentile\tMedian_cov\tMean_cov_geq1\tContainment_ind\tNaive_ANI\tkmers_reassigned\tContig_name\tNaive_ANI_1\tAdjusted_ANI_1\tConditional_containment_ind\tkmer_coverage", cov_head
             ).expect("Error writing to file.");
     }
 }
@@ -743,10 +745,11 @@ fn get_stats<'a>(
         }
     }
     covs.sort();
-    //let covs = &covs[0..covs.len() * 99 / 100];
-    /*
+    let covs = &covs[0..covs.len() * 99 / 100];
+    
     println!("COVS LEN {}", covs.len());
     let median_cov = covs[covs.len() / 2] as f64;
+    /*
     let pois = Poisson::new(median_cov).unwrap();
     let mut max_cov = f64::MAX;
     if median_cov < 30.{
@@ -923,6 +926,8 @@ fn get_stats<'a>(
         seq_abund: None,
         kmers_lost: kmers_lost,
 
+        // temp
+        kmer_coverage_vec: Some(kmer_counts.clone()),
     };
     //log::trace!("Other time {:?}", Instant::now() - start_t_initial);
 

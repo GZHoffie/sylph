@@ -208,4 +208,7 @@ pub struct AniResult<'a>{
     pub seq_abund: Option<f64>,
     pub kmers_lost: Option<usize>,
 
+    // temp
+    pub kmer_coverage_vec: Option<Vec<u32>>,
+
 }
